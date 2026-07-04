@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบงานสารสนเทศโรงเรียน - School MIS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        body { font-family: 'Kanit', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <div id="globalLoader" class="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center hidden backdrop-blur-xs">
+        <div class="bg-white p-5 rounded-2xl shadow-xl flex flex-col items-center gap-3">
+            <div class="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-sm font-medium text-slate-600">กำลังประมวลผลข้อมูล...</p>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+    <div id="app" class="flex flex-col md:flex-row flex-1 w-full min-h-screen">
+        
+        <aside id="sidebar" class="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col fixed inset-y-0 left-0 z-30 transition-transform duration-300">
+            <div class="p-6 border-b border-slate-100 flex items-center gap-3">
+                <div class="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><i data-lucide="graduation-cap" class="w-6 h-6"></i></div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight text-indigo-900">SchoolMIS</h1>
+                    <span class="text-xs text-slate-400 font-medium">ระบบสารสนเทศโรงเรียน</span>
+                </div>
+            </div>
+            <div class="p-4 flex flex-col justify-between flex-1">
+                <nav class="space-y-1" id="desktopNav">
+                    </nav>
+                <div class="pt-4 border-t border-slate-100">
+                    <div class="flex items-center gap-3 p-2 mb-3 bg-slate-50 rounded-xl" id="sidebarUserProfile">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold flex items-center justify-center text-sm" id="userInitial">A</div>
+                        <div class="overflow-hidden">
+                            <p class="text-sm font-semibold truncate" id="profileName">Guest User</p>
+                            <p class="text-xs text-slate-400 truncate" id="profileRole">ผู้เยี่ยมชม</p>
+                        </div>
+                    </div>
+                    <button onclick="openLogoutModal()" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition duration-150">
+                        <i data-lucide="log-out" class="w-4 h-4"></i> ออกจากระบบ
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <main id="mainContent" class="flex-1 flex flex-col md:pl-64 min-w-0 pb-20 md:pb-0">
+            
+            <div id="viewContainer" class="p-4 sm:p-6 lg:p-8 flex-1">
+                </div>
+
+        </main>
+
+        <nav id="bottomNav" class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 h-16 px-4 flex items-center justify-around z-40 shadow-lg">
+            </nav>
+
+        <div id="adminMobilePanel" class="md:hidden fixed bottom-16 inset-x-0 bg-white border-t border-slate-200 shadow-2xl rounded-t-2xl z-40 transform translate-y-full transition-transform duration-300 max-h-[70vh] overflow-y-auto">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0">
+                <span class="font-bold text-slate-700 flex items-center gap-2 text-sm"><i data-lucide="sliders" class="w-4 h-4 text-indigo-600"></i> จัดการระบบหลังบ้าน</span>
+                <button onclick="toggleAdminPanel(false)" class="p-1.5 hover:bg-slate-200 rounded-full text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-4 grid grid-cols-2 gap-3" id="adminMobileGrid">
+                </div>
+        </div>
+
+    </div>
+
+    <div id="logoutModal" class="fixed inset-0 bg-slate-900/40 z-50 items-center justify-center hidden p-4 backdrop-blur-xs">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform scale-95 transition-transform duration-200">
+            <div class="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mb-4"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">ยืนยันการออกจากระบบ?</h3>
+            <p class="text-sm text-slate-500 mb-6">คุณจำเป็นต้องเข้าสู่ระบบใหม่อีกครั้งหากต้องการเข้าถึงข้อมูลภายหลัง</p>
+            <div class="flex gap-3">
+                <button onclick="closeLogoutModal()" class="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 font-medium text-sm rounded-xl transition">ยกเลิก</button>
+                <button onclick="handleLogout()" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 font-medium text-sm text-white rounded-xl transition">ออกจากระบบ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="formModal" class="fixed inset-0 bg-slate-900/40 z-50 items-center justify-center hidden p-4 overflow-y-auto backdrop-blur-xs">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl my-8">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                <h3 id="modalFormTitle" class="text-lg font-bold text-slate-900">จัดการข้อมูล</h3>
+                <button onclick="closeFormModal()" class="p-1.5 hover:bg-slate-100 rounded-full text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form id="crudForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <input type="hidden" id="formId">
+                <input type="hidden" id="formType">
+                <input type="hidden" id="formUserId">
+                
+                <div class="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div class="w-16 h-16 rounded-full bg-slate-200 border border-slate-300 overflow-hidden flex items-center justify-center relative group" id="formAvatarWrapper">
+                        <img id="formAvatarPreview" src="" class="w-full h-full object-cover hidden" onerror="this.classList.add('hidden'); document.getElementById('formAvatarFallback').classList.remove('hidden')">
+                        <div id="formAvatarFallback" class="text-slate-400"><i data-lucide="user" class="w-8 h-8"></i></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">รูปโปรไฟล์ (บีบอัดอัตโนมัติ)</label>
+                        <input type="file" id="imageUpload" accept="image/*" onchange="processAndPreviewImage(event)" class="text-xs text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer">
+                        <input type="hidden" id="formAvatarUrl">
+                    </div>
+                </div>
+
+                <div id="accountFields" class="grid grid-cols-2 gap-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                    <div class="col-span-2 text-xs font-bold text-indigo-700">สร้างบัญชีผู้ใช้เข้าสู่ระบบใหม่</div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">Username</label>
+                        <input type="text" id="accUsername" class="w-full p-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">Password</label>
+                        <input type="text" id="accPassword" class="w-full p-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    </div>
+                </div>
+
+                <div id="dynamicInputs" class="grid grid-cols-2 gap-3">
+                    </div>
+
+                <div class="flex gap-3 pt-4 border-t border-slate-100 justify-end">
+                    <button type="button" onclick="closeFormModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-sm font-medium rounded-xl transition">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-sm font-medium text-white rounded-xl shadow-md transition">บันทึกข้อมูล</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. SUPABASE CLIENT INITIALIZATION
+        // ==========================================
+        const SUPABASE_URL = 'https://gcgwpxucjyybgbihqcgp.supabase.co'; // เปลี่ยนเป็น Supabase URL ของคุณ
+        const SUPABASE_ANON_KEY = 'sb_publishable_Md6MPmrDEoi7ad3nvBwVMw_lTvJafJV'; // เปลี่ยนเป็น Anon Key ของคุณ
+        
+        // ห้ามใช้ชื่อตัวแปรซ้ำตามข้อกำหนด -> ใช้ dbClient แทน
+        const dbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Global States
+        let currentUser = null;
+        let activeView = 'landing';
+        let cachedStudents = [];
+        let cachedStaff = [];
+        let mainChart = null;
+
+        // UI Constraints & Dictionaries
+        const gradeLevels = ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
+
+        // Initial Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            routeTo('landing');
+        });
+
+        // ==========================================
+        // 2. HELPER UTILITIES & UI CONTROLS
+        // ==========================================
+        function showLoader(show) {
+            document.getElementById('globalLoader').classList.toggle('hidden', !show);
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `flex items-center gap-3 px-4 py-3 bg-white border-l-4 rounded-xl shadow-lg pointer-events-auto transform translate-y-2 opacity-0 transition duration-300 min-w-[280px] max-w-sm ${
+                type === 'success' ? 'border-emerald-500 text-emerald-800' : type === 'warning' ? 'border-amber-500 text-amber-800' : 'border-red-500 text-red-800'
+            }`;
+            
+            let icon = 'check-circle';
+            if(type === 'warning') icon = 'alert-triangle';
+            if(type === 'danger') icon = 'x-circle';
+
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 flex-shrink-0"></i><span class="text-sm font-medium">${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => { toast.remove(); }, 300);
+            }, 3500);
+        }
+
+        function toggleAdminPanel(isOpen) {
+            const panel = document.getElementById('adminMobilePanel');
+            panel.classList.toggle('translate-y-full', !isOpen);
+        }
+
+        function openLogoutModal() { 
+            const modal = document.getElementById('logoutModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        function closeLogoutModal() { 
+            const modal = document.getElementById('logoutModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Image compression helper (Canvas-based to preserve Storage)
+        function processAndPreviewImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function (e) {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = function () {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 250;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    // Compress into base64 string
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    // Show preview
+                    const preview = document.getElementById('formAvatarPreview');
+                    const fallback = document.getElementById('formAvatarFallback');
+                    preview.src = compressedBase64;
+                    preview.classList.remove('hidden');
+                    fallback.classList.add('hidden');
+                    
+                    // Store the data string temporarily
+                    document.getElementById('formAvatarUrl').value = compressedBase64;
+                }
+            }
+        }
+
+        async function uploadCompressedImageToStorage(base64Str) {
+            if(!base64Str || !base64Str.startsWith('data:image')) return base64Str;
+            try {
+                // Convert base64 back to raw file blob for upload
+                const res = await fetch(base64Str);
+                const blob = await res.blob();
+                const fileName = `avatar_${Date.now()}_${Math.floor(Math.random()*1000)}.jpg`;
+
+                const { data, error } = await dbClient.storage.from('img').upload(fileName, blob, {
+                    contentType: 'image/jpeg',
+                    upsert: true
+                });
+
+                if(error) throw error;
+                // Form public url
+                return `${SUPABASE_URL}/storage/v1/object/public/img/${fileName}`;
+            } catch(err) {
+                console.error(err);
+                showToast('อัปโหลดรูปล้มเหลว ใช้ภาพสแตนดาร์ดแทน', 'warning');
+                return null;
+            }
+        }
+
+        // ==========================================
+        // 3. ROUTING & INTERFACE DESIGN BUILDER
+        // ==========================================
+        function routeTo(viewName) {
+            activeView = viewName;
+            toggleAdminPanel(false);
+            
+            // Adjust App shell based on Role/State
+            const sidebar = document.getElementById('sidebar');
+            const bottomNav = document.getElementById('bottomNav');
+            const mainContent = document.getElementById('mainContent');
+
+            if (!currentUser) {
+                sidebar.classList.add('hidden');
+                bottomNav.classList.add('hidden');
+                mainContent.classList.remove('md:pl-64');
+            } else {
+                sidebar.classList.remove('hidden');
+                sidebar.classList.add('md:flex');
+                bottomNav.classList.remove('hidden');
+                mainContent.classList.add('md:pl-64');
+                buildNavigationMenus();
+            }
+
+            renderView();
+        }
+
+        function buildNavigationMenus() {
+            const dNav = document.getElementById('desktopNav');
+            const mNav = document.getElementById('bottomNav');
+            const mGrid = document.getElementById('adminMobileGrid');
+
+            dNav.innerHTML = '';
+            mNav.innerHTML = '';
+            mGrid.innerHTML = '';
+
+            // Layout definitions per role
+            if(currentUser.role === 'Admin') {
+                // Desktop
+                dNav.innerHTML = `
+                    <button onclick="routeTo('dashboard')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='dashboard'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> แดชบอร์ดผู้บริหาร</button>
+                    <button onclick="routeTo('students')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='students'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="users" class="w-4 h-4"></i> ข้อมูลนักเรียน</button>
+                    <button onclick="routeTo('staff')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='staff'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="contact" class="w-4 h-4"></i> ข้อมูลบุคลากร</button>
+                `;
+                // Mobile Bottom Bar (Admin Special Hamburger in center)
+                mNav.innerHTML = `
+                    <button onclick="routeTo('dashboard')" class="flex flex-col items-center justify-center text-xs font-medium ${activeView==='dashboard'?'text-indigo-600':'text-slate-400'}"><i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>แดชบอร์ด</span></button>
+                    <button onclick="toggleAdminPanel(true)" class="flex flex-col items-center justify-center -translate-y-4 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg border-4 border-white"><i data-lucide="menu" class="w-6 h-6"></i></button>
+                    <button onclick="openLogoutModal()" class="flex flex-col items-center justify-center text-xs font-medium text-red-500"><i data-lucide="log-out" class="w-5 h-5"></i><span>ออก</span></button>
+                `;
+                // Mobile Admin Panel Drawer Grid Menu
+                mGrid.innerHTML = `
+                    <button onclick="routeTo('students')" class="flex flex-col items-center gap-2 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-indigo-50/50 text-slate-700"><i data-lucide="users" class="w-6 h-6 text-indigo-600"></i><span class="text-xs font-semibold">ข้อมูลนักเรียน</span></button>
+                    <button onclick="routeTo('staff')" class="flex flex-col items-center gap-2 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-indigo-50/50 text-slate-700"><i data-lucide="contact" class="w-6 h-6 text-indigo-600"></i><span class="text-xs font-semibold">ข้อมูลบุคลากร</span></button>
+                `;
+            } else if(currentUser.role === 'Teacher') {
+                dNav.innerHTML = `
+                    <button onclick="routeTo('teacher_profile')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='teacher_profile'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="user" class="w-4 h-4"></i> ข้อมูลของฉัน</button>
+                    <button onclick="routeTo('students')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='students'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="users" class="w-4 h-4"></i> นักเรียนในกลุ่ม</button>
+                `;
+                mNav.innerHTML = `
+                    <button onclick="routeTo('teacher_profile')" class="flex flex-col items-center justify-center text-xs font-medium ${activeView==='teacher_profile'?'text-indigo-600':'text-slate-400'}"><i data-lucide="user" class="w-5 h-5"></i><span>ข้อมูลของฉัน</span></button>
+                    <button onclick="routeTo('students')" class="flex flex-col items-center justify-center text-xs font-medium ${activeView==='students'?'text-indigo-600':'text-slate-400'}"><i data-lucide="users" class="w-5 h-5"></i><span>นักเรียน</span></button>
+                    <button onclick="openLogoutModal()" class="flex flex-col items-center justify-center text-xs font-medium text-red-500"><i data-lucide="log-out" class="w-5 h-5"></i><span>ออก</span></button>
+                `;
+            } else if(currentUser.role === 'Student') {
+                dNav.innerHTML = `
+                    <button onclick="routeTo('student_card')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='student_card'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="vibrate" class="w-4 h-4"></i> บัตรนักเรียนสารสนเทศ</button>
+                `;
+                mNav.innerHTML = `
+                    <button onclick="routeTo('student_card')" class="flex flex-col items-center justify-center text-xs font-medium ${activeView==='student_card'?'text-indigo-600':'text-slate-400'}"><i data-lucide="vibrate" class="w-5 h-5"></i><span>บัตรนักเรียน</span></button>
+                    <button onclick="openLogoutModal()" class="flex flex-col items-center justify-center text-xs font-medium text-red-500"><i data-lucide="log-out" class="w-5 h-5"></i><span>ออก</span></button>
+                `;
+            }
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 4. VIEW RENDER ENGINE (SPA MECHANISM)
+        // ==========================================
+        async function renderView() {
+            const container = document.getElementById('viewContainer');
+            
+            // Destory old chart references if any
+            if(mainChart) { mainChart.destroy(); mainChart = null; }
+
+            // 1. LANDING PAGE VIEW
+            if(activeView === 'landing') {
+                showLoader(true);
+                // Fetch dynamic fast overview numbers for guest overview stats
+                const { count: sCount } = await dbClient.from('students').select('*', { count: 'exact', head: true });
+                const { count: tCount } = await dbClient.from('staff').select('*', { count: 'exact', head: true });
+                showLoader(false);
+
+                container.innerHTML = `
+                    <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+                        <div class="glass border border-white/60 rounded-3xl p-8 md:p-12 shadow-xl text-center mb-12 relative overflow-hidden">
+                            <div class="absolute -top-10 -right-10 w-40 h-40 bg-indigo-200/40 rounded-full blur-2xl"></div>
+                            <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-slate-200/40 rounded-full blur-2xl"></div>
+                            
+                            <div class="inline-flex p-3 bg-indigo-600 text-white rounded-2xl mb-6 shadow-md"><i data-lucide="graduation-cap" class="w-10 h-10"></i></div>
+                            <h2 class="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">ระบบงานสารสนเทศโรงเรียนยุคใหม่</h2>
+                            <p class="text-sm sm:text-base text-slate-500 max-w-xl mx-auto mb-8">การบริหารจัดการข้อมูลทางวิชาการ แดชบอร์ดวิเคราะห์ผลเพื่อการตัดสินใจที่แม่นยำ รวดเร็ว และปลอดภัยสำหรับทุกฝ่าย</p>
+                            
+                            <div class="flex justify-center"><button onclick="routeTo('login')" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-lg shadow-indigo-600/20 transform hover:-translate-y-0.5 transition duration-150 text-sm sm:text-base flex items-center gap-2">เข้าสู่ระบบใช้งาน <i data-lucide="arrow-right" class="w-4 h-4"></i></button></div>
+                        </div>
+
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest text-center mb-6">ข้อมูลสรุปภาพรวมสถานศึกษา (Overview Stats)</h3>
+                        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                            <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs text-center">
+                                <div class="text-3xl font-bold text-indigo-600 mb-1">${sCount || 0}</div>
+                                <div class="text-xs font-medium text-slate-400">นักเรียนทั้งหมด</div>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs text-center">
+                                <div class="text-3xl font-bold text-slate-700 mb-1">${tCount || 0}</div>
+                                <div class="text-xs font-medium text-slate-400">ครูและบุคลากร</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 2. LOGIN VIEW
+            else if(activeView === 'login') {
+                container.innerHTML = `
+                    <div class="max-w-md mx-auto my-12">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-8 shadow-xl">
+                            <div class="text-center mb-6">
+                                <h2 class="text-xl font-bold text-slate-900">เข้าสู่ระบบสารสนเทศ</h2>
+                                <p class="text-xs text-slate-400 mt-1">กรอกบัญชีผู้ใช้งานที่ได้รับมอบจากฝ่ายทะเบียนและสารสนเทศ</p>
+                            </div>
+                            <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="user" class="w-4 h-4"></i></div>
+                                        <input type="text" id="loginUser" required class="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Username">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">รหัสผ่าน (Password)</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="lock" class="w-4 h-4"></i></div>
+                                        <input type="password" id="loginPass" required class="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="••••••••">
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-md transition duration-150">ยืนยันตัวตนเข้าสู่ระบบ</button>
+                                <button type="button" onclick="routeTo('landing')" class="w-full py-2 text-slate-500 hover:text-slate-700 text-xs text-center transition">ย้อนกลับหน้าหลัก</button>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 3. EXECUTIVE DASHBOARD
+            else if(activeView === 'dashboard') {
+                if(currentUser.role !== 'Admin') return routeTo('landing');
+                showLoader(true);
+                await refreshDataCache();
+                showLoader(false);
+
+                // Analyze chart data group by Grade Level
+                const gradeCounts = {};
+                gradeLevels.forEach(g => gradeCounts[g] = 0);
+                cachedStudents.forEach(s => { if(gradeCounts[s.grade_level] !== undefined) gradeCounts[s.grade_level]++; });
+
+                container.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-900">แดชบอร์ดสรุปผลการบริหารสำหรับผู้บริหาร</h2>
+                                <p class="text-xs text-slate-400">ข้อมูลรวมและกราฟแจกแจงสถิตินักเรียนรายชั้นปี</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                                <div class="text-xs text-slate-400 font-medium mb-1">นักเรียนรวมทั้งหมด</div>
+                                <div class="text-2xl font-bold text-indigo-600">${cachedStudents.length} คน</div>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                                <div class="text-xs text-slate-400 font-medium mb-1">บุคลากรและครู</div>
+                                <div class="text-2xl font-bold text-slate-800">${cachedStaff.length} คน</div>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                                <div class="text-xs text-slate-400 font-medium mb-1">แผนการเรียนมัธยม</div>
+                                <div class="text-2xl font-bold text-emerald-600">6 ระดับชั้น</div>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                                <div class="text-xs text-slate-400 font-medium mb-1">สถานะเซิร์ฟเวอร์</div>
+                                <div class="text-2xl font-bold text-amber-500 flex items-center gap-1.5 text-sm"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span> เสถียร (Connected)</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4 text-indigo-600"></i> แผนภูมิแสดงจำนวนนักเรียนแบ่งแยกตามระดับชั้น (ม.1 - ม.6)</h3>
+                            <div class="relative w-full max-h-[320px] flex justify-center">
+                                <canvas id="chartCanvas" class="w-full max-w-lg"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Render Chart.js
+                const ctx = document.getElementById('chartCanvas').getContext('2d');
+                mainChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: gradeLevels,
+                        datasets: [{
+                            label: 'จำนวนนักเรียน (คน)',
+                            data: gradeLevels.map(g => gradeCounts[g]),
+                            backgroundColor: '#4f46e5',
+                            borderRadius: 8,
+                            borderSkipped: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    }
+                });
+            }
+
+            // 4. STUDENTS MANAGER SECTION (ADMIN / TEACHER)
+            else if(activeView === 'students') {
+                showLoader(true);
+                await refreshDataCache();
+                showLoader(false);
+
+                container.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-900">${currentUser.role==='Teacher'?'ข้อมูลรายชื่อนักเรียนในความดูแล':'ระบบจัดการข้อมูลนักเรียน'}</h2>
+                                <p class="text-xs text-slate-400">ค้นหา กรองข้อมูลรายห้อง และดาวน์โหลดรายงานสรุป</p>
+                            </div>
+                            ${currentUser.role === 'Admin' ? `
+                            <button onclick="openFormModal('student')" class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"><i data-lucide="user-plus" class="w-4 h-4"></i> เพิ่มนักเรียนใหม่</button>
+                            ` : ''}
+                        </div>
+
+                        <div class="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="search" class="w-4 h-4"></i></div>
+                                <input type="text" id="searchStudent" oninput="filterStudentsTable()" class="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="ค้นหาชื่อ หรือเลขประจำตัว...">
+                            </div>
+                            <div>
+                                <select id="filterGrade" onchange="filterStudentsTable()" class="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="">ทุกระดับชั้น</option>
+                                    ${gradeLevels.map(g => `<option value="${g}">${g}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="flex gap-2">
+                                <select id="filterClassroom" onchange="filterStudentsTable()" class="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="">ทุกห้องเรียน</option>
+                                    <option value="1">ห้อง 1</option>
+                                    <option value="2">ห้อง 2</option>
+                                    <option value="3">ห้อง 3</option>
+                                </select>
+                                <button onclick="exportStudentsToExcel()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-xl transition flex items-center gap-1.5 whitespace-nowrap"><i data-lucide="download" class="w-3.5 h-3.5"></i> Export Excel</button>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+                            <div class="hidden md:block overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                            <th class="px-6 py-3">รูป</th>
+                                            <th class="px-6 py-3">เลขประจำตัว</th>
+                                            <th class="px-6 py-3">ชื่อ-สกุล</th>
+                                            <th class="px-6 py-3">ชั้น/ห้อง</th>
+                                            <th class="px-6 py-3">แผนการเรียน</th>
+                                            <th class="px-6 py-3">ผู้ปกครอง</th>
+                                            ${currentUser.role === 'Admin' ? `<th class="px-6 py-3 text-right">การจัดการ</th>` : ''}
+                                        </tr>
+                                    </thead>
+                                    <tbody id="studentTableBody" class="text-sm divide-y divide-slate-100">
+                                        </tbody>
+                                </table>
+                            </div>
+
+                            <div id="studentMobileContainer" class="block md:hidden p-4 space-y-3 divide-y divide-slate-100">
+                                </div>
+                        </div>
+                    </div>
+                `;
+                filterStudentsTable();
+            }
+
+            // 5. STAFF MANAGER SECTION (ADMIN ONLY)
+            else if(activeView === 'staff') {
+                if(currentUser.role !== 'Admin') return routeTo('landing');
+                showLoader(true);
+                await refreshDataCache();
+                showLoader(false);
+
+                container.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-900">ระบบจัดการข้อมูลครูและบุคลากร</h2>
+                                <p class="text-xs text-slate-400">ค้นหา ตรวจสอบโครงสร้างกลุ่มสาระฯ และบุคลากรทางการศึกษา</p>
+                            </div>
+                            <button onclick="openFormModal('staff')" class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"><i data-lucide="user-plus" class="w-4 h-4"></i> เพิ่มบุคลากรใหม่</button>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="search" class="w-4 h-4"></i></div>
+                                <input type="text" id="searchStaff" oninput="filterStaffTable()" class="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="ค้นหาชื่อ หรือตำแหน่งบุคลากร...">
+                            </div>
+                            <div>
+                                <select id="filterDepartment" onchange="filterStaffTable()" class="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="">ทุกกลุ่มสาระการเรียนรู้ / ฝ่ายงาน</option>
+                                    <option value="วิทยาศาสตร์และเทคโนโลยี">วิทยาศาสตร์และเทคโนโลยี</option>
+                                    <option value="คณิตศาสตร์">คณิตศาสตร์</option>
+                                    <option value="ภาษาไทย">ภาษาไทย</option>
+                                    <option value="ภาษาต่างประเทศ">ภาษาต่างประเทศ</option>
+                                    <option value="บริหารงานทั่วไป">บริหารงานทั่วไป</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+                            <div class="hidden md:block overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                            <th class="px-6 py-3">รูป</th>
+                                            <th class="px-6 py-3">ชื่อ-สกุล</th>
+                                            <th class="px-6 py-3">ตำแหน่ง</th>
+                                            <th class="px-6 py-3">กลุ่มสาระฯ/สังกัด</th>
+                                            <th class="px-6 py-3">เบอร์โทรศัพท์</th>
+                                            <th class="px-6 py-3 text-right">การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="staffTableBody" class="text-sm divide-y divide-slate-100">
+                                        </tbody>
+                                </table>
+                            </div>
+                            <div id="staffMobileContainer" class="block md:hidden p-4 space-y-3 divide-y divide-slate-100">
+                                </div>
+                        </div>
+                    </div>
+                `;
+                filterStaffTable();
+            }
+
+            // 6. STUDENT PORTAL (CARD VIEW)
+            else if(activeView === 'student_card') {
+                if(currentUser.role !== 'Student') return routeTo('landing');
+                showLoader(true);
+                // Get linked student data
+                const { data, error } = await dbClient.from('students').select('*').eq('user_id', currentUser.id).maybeSingle();
+                showLoader(false);
+
+                if(!data) {
+                    container.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs">ไม่พบฐานข้อมูลนักเรียนที่ผูกกับบัญชีนี้ กรุณาติดต่อแอดมิน</div>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="max-w-md mx-auto py-6">
+                        <div class="text-center mb-6">
+                            <h2 class="text-xl font-bold text-slate-900">ยินดีต้อนรับสู่ระบบสารสนเทศนักเรียน</h2>
+                            <p class="text-xs text-slate-400">คุณสามารถดูการ์ดสารสนเทศประจำตัวและตรวจสอบ/แก้ไขข้อมูลส่วนตัวได้ทันที</p>
+                        </div>
+                        
+                        <div class="bg-gradient-to-br from-indigo-600 to-slate-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden mb-6">
+                            <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-xl -mr-10 -mt-10"></div>
+                            <div class="flex justify-between items-start mb-6">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="graduation-cap" class="w-6 h-6 text-indigo-300"></i>
+                                    <div>
+                                        <div class="text-xs font-bold tracking-wider text-indigo-200">SCHOOL STUDENT ID</div>
+                                        <div class="text-[10px] text-slate-300">โรงเรียนวิทยาการสารสนเทศ</div>
+                                    </div>
+                                </div>
+                                <span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-medium px-2 py-0.5 rounded-full">STUDENT ACTIVE</span>
+                            </div>
+                            
+                            <div class="flex gap-4 items-center">
+                                <div class="w-20 h-20 bg-white/20 rounded-xl border border-white/30 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                    ${data.avatar_url ? `<img src="${data.avatar_url}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'">` : `<i data-lucide="user" class="w-10 h-10 text-slate-300"></i>`}
+                                </div>
+                                <div class="overflow-hidden">
+                                    <h4 class="font-bold text-base truncate">${data.name}</h4>
+                                    <p class="text-xs text-indigo-200 mt-0.5">ID: ${data.student_code}</p>
+                                    <p class="text-xs text-slate-300">ระดับชั้น: ชั้น ${data.grade_level}/${data.classroom}</p>
+                                    <p class="text-[11px] text-slate-400 truncate mt-1">${data.program}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3 text-xs">
+                            <div class="font-bold text-slate-700 pb-1 border-b border-slate-100 flex items-center gap-1.5"><i data-lucide="text" class="w-4 h-4 text-indigo-500"></i> รายละเอียดข้อมูลเพิ่มเติม</div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><span class="text-slate-400">เบอร์โทรศัพท์:</span> <p class="font-medium text-slate-700">${data.phone || '-'}</p></div>
+                                <div><span class="text-slate-400">ชื่อผู้ปกครอง:</span> <p class="font-medium text-slate-700">${data.parent_name || '-'}</p></div>
+                                <div class="col-span-2"><span class="text-slate-400">เบอร์โทรผู้ปกครอง:</span> <p class="font-medium text-slate-700">${data.parent_phone || '-'}</p></div>
+                            </div>
+                            <div class="pt-3 border-t border-slate-100">
+                                <button onclick="openFormModal('student', ${JSON.stringify(data).replace(/"/g, '&quot;')})" class="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-medium rounded-xl transition flex items-center justify-center gap-1.5"><i data-lucide="edit-3" class="w-4 h-4"></i> แก้ไขข้อมูลประวัติของฉัน</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 7. TEACHER PROFILE PORTAL
+            else if(activeView === 'teacher_profile') {
+                if(currentUser.role !== 'Teacher') return routeTo('landing');
+                showLoader(true);
+                const { data, error } = await dbClient.from('staff').select('*').eq('user_id', currentUser.id).maybeSingle();
+                showLoader(false);
+
+                if(!data) {
+                    container.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs">ไม่พบข้อมูลประวัติครู กรุณาติดต่อแอดมิน</div>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="max-w-md mx-auto py-6">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-xl text-center">
+                            <div class="w-24 h-24 bg-slate-100 rounded-full mx-auto border-2 border-indigo-500 overflow-hidden mb-4 flex items-center justify-center">
+                                ${data.avatar_url ? `<img src="${data.avatar_url}" class="w-full h-full object-cover">` : `<i data-lucide="user" class="w-12 h-12 text-slate-400"></i>`}
+                            </div>
+                            <h3 class="font-bold text-lg text-slate-900">${data.name}</h3>
+                            <p class="text-xs text-indigo-600 font-medium">${data.position}</p>
+                            
+                            <div class="mt-6 border-t border-slate-100 pt-4 text-left space-y-3 text-xs">
+                                <div><span class="text-slate-400">กลุ่มสาระการเรียนรู้:</span> <p class="font-semibold text-slate-700">${data.department}</p></div>
+                                <div><span class="text-slate-400">เบอร์โทรศัพท์ติดต่อ:</span> <p class="font-semibold text-slate-700">${data.phone || '-'}</p></div>
+                            </div>
+                            
+                            <div class="mt-6">
+                                <button onclick="openFormModal('staff', ${JSON.stringify(data).replace(/"/g, '&quot;')})" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5"><i data-lucide="edit" class="w-4 h-4"></i> แก้ไขประวัติส่วนตัว</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 5. CACHE MANAGEMENT & DATA HANDLING
+        // ==========================================
+        async function refreshDataCache() {
+            try {
+                // Read operations mapping
+                let sQuery = dbClient.from('students').select('*').order('id', { ascending: false });
+                let tQuery = dbClient.from('staff').select('*').order('id', { ascending: false });
+
+                // If user is a Teacher, isolate to scope restriction
+                if(currentUser && currentUser.role === 'Teacher') {
+                    const { data: teacherMeta } = await dbClient.from('staff').select('department').eq('user_id', currentUser.id).maybeSingle();
+                    // Scope logic: View only students sharing standard default patterns or match parameters if structured
+                }
+
+                const [resStudents, resStaff] = await Promise.all([sQuery, tQuery]);
+                
+                if (resStudents.error) throw resStudents.error;
+                if (resStaff.error) throw resStaff.error;
+
+                cachedStudents = resStudents.data || [];
+                cachedStaff = resStaff.data || [];
+            } catch (err) {
+                console.error(err);
+                showToast('ไม่สามารถดึงข้อมูลจากฐานข้อมูลสารสนเทศได้', 'danger');
+            }
+        }
+
+        // Custom Login Auth Execution
+        async function handleLoginSubmit(event) {
+            event.preventDefault();
+            const u = document.getElementById('loginUser').value.trim();
+            const p = document.getElementById('loginPass').value.trim();
+
+            showLoader(true);
+            const { data, error } = await dbClient.from('users').select('*').eq('username', u).eq('password', p).maybeSingle();
+            showLoader(false);
+
+            if(error || !data) {
+                showToast('ชื่อผู้ใช้หรือรหัสผ่านระบบสารสนเทศไม่ถูกต้อง', 'danger');
+                return;
+            }
+
+            currentUser = data;
+            
+            // Set App Context Shell Details
+            document.getElementById('profileName').innerText = currentUser.username.toUpperCase();
+            document.getElementById('profileRole').innerText = `สิทธิ์การใช้: ${currentUser.role}`;
+            document.getElementById('userInitial').innerText = currentUser.username.charAt(0).toUpperCase();
+
+            showToast(`ยินดีต้อนรับเข้าสู่ระบบด้วยสิทธิ์ ${currentUser.role}`, 'success');
+            
+            if(currentUser.role === 'Admin') routeTo('dashboard');
+            else if(currentUser.role === 'Teacher') routeTo('teacher_profile');
+            else if(currentUser.role === 'Student') routeTo('student_card');
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            closeLogoutModal();
+            showToast('คุณได้ออกจากระบบสารสนเทศเรียบร้อยแล้ว');
+            routeTo('landing');
+        }
+
+        // ==========================================
+        // 6. FILTER & RENDER REPEATER ELEMENTS
+        // ==========================================
+        function filterStudentsTable() {
+            const sText = document.getElementById('searchStudent').value.toLowerCase();
+            const fGrade = document.getElementById('filterGrade').value;
+            const fClass = document.getElementById('filterClassroom').value;
+
+            const filtered = cachedStudents.filter(s => {
+                const matchesSearch = s.name.toLowerCase().includes(sText) || s.student_code.includes(sText);
+                const matchesGrade = fGrade === '' || s.grade_level === fGrade;
+                const matchesClass = fClass === '' || s.classroom === fClass;
+                return matchesSearch && matchesGrade && matchesClass;
+            });
+
+            const tbody = document.getElementById('studentTableBody');
+            const mContainer = document.getElementById('studentMobileContainer');
+            tbody.innerHTML = '';
+            mContainer.innerHTML = '';
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-6 text-xs text-slate-400">ไม่พบข้อมูลรายชื่อนักเรียนที่ค้นหา</td></tr>`;
+                mContainer.innerHTML = `<div class="text-center p-6 text-xs text-slate-400">ไม่พบข้อมูลรายชื่อนักเรียนที่ค้นหา</div>`;
+                return;
+            }
+
+            filtered.forEach(s => {
+                // Table row injection
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition text-xs";
+                tr.innerHTML = `
+                    <td class="px-6 py-3">
+                        <div class="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                            <img src="${s.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80'}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80'">
+                        </div>
+                    </td>
+                    <td class="px-6 py-3 font-semibold text-indigo-600">${s.student_code}</td>
+                    <td class="px-6 py-3 font-medium text-slate-900">${s.name}</td>
+                    <td class="px-6 py-3">${s.grade_level}/${s.classroom}</td>
+                    <td class="px-6 py-3 text-slate-500">${s.program}</td>
+                    <td class="px-6 py-3 text-slate-500">${s.parent_name || '-'}<br><span class="text-[10px] text-slate-400">${s.parent_phone || ''}</span></td>
+                    ${currentUser.role === 'Admin' ? `
+                    <td class="px-6 py-3 text-right space-x-1 whitespace-nowrap">
+                        <button onclick="openFormModal('student', ${JSON.stringify(s).replace(/"/g, '&quot;')})" class="p-1 text-blue-600 hover:bg-blue-50 rounded-md inline-block"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="deleteRowRecord('students', ${s.id})" class="p-1 text-red-600 hover:bg-red-50 rounded-md inline-block"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    </td>
+                    `:''}
+                `;
+                tbody.appendChild(tr);
+
+                // Mobile Card item injection
+                const card = document.createElement('div');
+                card.className = "py-3 flex justify-between items-center gap-3 text-xs";
+                card.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border">
+                            <img src="${s.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80'}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80'">
+                        </div>
+                        <div class="overflow-hidden">
+                            <p class="font-bold text-slate-900 truncate">${s.name}</p>
+                            <p class="text-[10px] text-slate-400">เลขประจำตัว: ${s.student_code} | ชั้น ${s.grade_level}/${s.classroom}</p>
+                            <p class="text-[10px] text-indigo-600 truncate">${s.program}</p>
+                        </div>
+                    </div>
+                    ${currentUser.role === 'Admin' ? `
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button onclick="openFormModal('student', ${JSON.stringify(s).replace(/"/g, '&quot;')})" class="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                        <button onclick="deleteRowRecord('students', ${s.id})" class="p-1.5 bg-red-50 text-red-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                    `:''}
+                `;
+                mContainer.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function filterStaffTable() {
+            const sText = document.getElementById('searchStaff').value.toLowerCase();
+            const fDept = document.getElementById('filterDepartment').value;
+
+            const filtered = cachedStaff.filter(t => {
+                const matchesSearch = t.name.toLowerCase().includes(sText) || t.position.toLowerCase().includes(sText);
+                const matchesDept = fDept === '' || t.department === fDept;
+                return matchesSearch && matchesDept;
+            });
+
+            const tbody = document.getElementById('staffTableBody');
+            const mContainer = document.getElementById('staffMobileContainer');
+            tbody.innerHTML = '';
+            mContainer.innerHTML = '';
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-6 text-xs text-slate-400">ไม่พบรายชื่อบุคลากรทางการศึกษาตามเงื่อนไข</td></tr>`;
+                mContainer.innerHTML = `<div class="text-center p-6 text-xs text-slate-400">ไม่พบรายชื่อบุคลากรที่ค้นหา</div>`;
+                return;
+            }
+
+            filtered.forEach(t => {
+                // Table View
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition text-xs";
+                tr.innerHTML = `
+                    <td class="px-6 py-3">
+                        <div class="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                            <img src="${t.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80'}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80'">
+                        </div>
+                    </td>
+                    <td class="px-6 py-3 font-semibold text-slate-900">${t.name}</td>
+                    <td class="px-6 py-3 text-indigo-600 font-medium">${t.position}</td>
+                    <td class="px-6 py-3 text-slate-500">${t.department}</td>
+                    <td class="px-6 py-3 text-slate-500">${t.phone || '-'}</td>
+                    <td class="px-6 py-3 text-right space-x-1 whitespace-nowrap">
+                        <button onclick="openFormModal('staff', ${JSON.stringify(t).replace(/"/g, '&quot;')})" class="p-1 text-blue-600 hover:bg-blue-50 rounded-md inline-block"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="deleteRowRecord('staff', ${t.id})" class="p-1 text-red-600 hover:bg-red-50 rounded-md inline-block"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                // Mobile Card View
+                const card = document.createElement('div');
+                card.className = "py-3 flex justify-between items-center gap-3 text-xs";
+                card.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border">
+                            <img src="${t.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80'}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80'">
+                        </div>
+                        <div class="overflow-hidden">
+                            <p class="font-bold text-slate-900 truncate">${t.name}</p>
+                            <p class="text-[10px] text-indigo-600 font-medium">${t.position}</p>
+                            <p class="text-[10px] text-slate-400 truncate">${t.department}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button onclick="openFormModal('staff', ${JSON.stringify(t).replace(/"/g, '&quot;')})" class="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                        <button onclick="deleteRowRecord('staff', ${t.id})" class="p-1.5 bg-red-50 text-red-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                `;
+                mContainer.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 7. CRUD DIALOG FORM CONTROLLER
+        // ==========================================
+        function openFormModal(type, rowData = null) {
+            const modal = document.getElementById('formModal');
+            document.getElementById('crudForm').reset();
+            
+            document.getElementById('formType').value = type;
+            document.getElementById('formId').value = rowData ? rowData.id : '';
+            document.getElementById('formUserId').value = rowData ? (rowData.user_id || '') : '';
+            document.getElementById('formAvatarUrl').value = rowData ? (rowData.avatar_url || '') : '';
+
+            // Handle Avatar Display Elements
+            const preview = document.getElementById('formAvatarPreview');
+            const fallback = document.getElementById('formAvatarFallback');
+            if(rowData && rowData.avatar_url) {
+                preview.src = rowData.avatar_url;
+                preview.classList.remove('hidden');
+                fallback.classList.add('hidden');
+            } else {
+                preview.classList.add('hidden');
+                fallback.classList.remove('hidden');
+            }
+
+            const accountFields = document.getElementById('accountFields');
+            const dynamicInputs = document.getElementById('dynamicInputs');
+            dynamicInputs.innerHTML = '';
+
+            // Account configurations toggles
+            if(rowData || currentUser.role !== 'Admin') {
+                accountFields.classList.add('hidden');
+                document.getElementById('accUsername').removeAttribute('required');
+                document.getElementById('accPassword').removeAttribute('required');
+            } else {
+                accountFields.classList.remove('hidden');
+                document.getElementById('accUsername').setAttribute('required', 'true');
+                document.getElementById('accPassword').setAttribute('required', 'true');
+            }
+
+            if(type === 'student') {
+                document.getElementById('modalFormTitle').innerText = rowData ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มประวัตินักเรียนใหม่';
+                
+                // Fields initialization for student
+                dynamicInputs.innerHTML = `
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">เลขประจำตัวนักเรียน</label>
+                        <input type="text" id="std_code" required ${rowData && currentUser.role!=='Admin'?'disabled':''} class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData?rowData.student_code:''}">
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">ชื่อ-นามสกุล</label>
+                        <input type="text" id="std_name" required class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData?rowData.name:''}">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">ระดับชั้น</label>
+                        <select id="std_grade" required ${rowData && currentUser.role!=='Admin'?'disabled':''} class="w-full p-2 text-sm border rounded-xl bg-white">
+                            ${gradeLevels.map(g => `<option value="${g}" ${rowData && rowData.grade_level===g?'selected':''}>${g}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">ห้องเรียน (เลขห้อง)</label>
+                        <input type="text" id="std_class" required ${rowData && currentUser.role!=='Admin'?'disabled':''} class="w-full p-2 text-sm border rounded-xl bg-white" placeholder="เช่น 1, 2" value="${rowData?rowData.classroom:''}">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs text-slate-500 mb-1">แผนการเรียน</label>
+                        <input type="text" id="std_program" required ${rowData && currentUser.role!=='Admin'?'disabled':''} class="w-full p-2 text-sm border rounded-xl bg-white" placeholder="เช่น วิทยาศาสตร์-คณิตศาสตร์" value="${rowData?rowData.program:''}">
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">เบอร์โทรศัพท์นักเรียน</label>
+                        <input type="text" id="std_phone" class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData?rowData.phone || '':''}">
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">ชื่อ-สกุล ผู้ปกครอง</label>
+                        <input type="text" id="std_pname" class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData?rowData.parent_name || '':''}">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs text-slate-500 mb-1">เบอร์โทรศัพท์ผู้ปกครอง</label>
+                        <input type="text" id="std_pphone" class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData?rowData.parent_phone || '':''}">
+                    </div>
+                `;
+            } else if(type === 'staff') {
+                document.getElementById('modalFormTitle').innerText = rowData ? 'แก้ไขข้อมูลบุคลากร' : 'เพิ่มประวัติบุคลากรใหม่';
+                
+                dynamicInputs.innerHTML = `
+                    <div class="col-span-2">
+                        <label class="block text-xs text-slate-500 mb-1">ชื่อ-นามสกุล บุคลากร</label>
+                        <input type="text" id="stf_name" required class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData?rowData.name:''}">
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">ตำแหน่ง</label>
+                        <input type="text" id="stf_pos" required ${rowData && currentUser.role!=='Admin'?'disabled':''} class="w-full p-2 text-sm border rounded-xl bg-white" placeholder="เช่น ครูผู้ช่วย, ครูชำนาญการ" value="${rowData?rowData.position:''}">
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">กลุ่มสาระฯ/ฝ่ายงานสังกัด</label>
+                        <select id="stf_dept" required ${rowData && currentUser.role!=='Admin'?'disabled':''} class="w-full p-2 text-sm border rounded-xl bg-white">
+                            <option value="วิทยาศาสตร์และเทคโนโลยี" ${rowData && rowData.department==='วิทยาศาสตร์และเทคโนโลยี'?'selected':''}>วิทยาศาสตร์และเทคโนโลยี</option>
+                            <option value="คณิตศาสตร์" ${rowData && rowData.department==='คณิตศาสตร์'?'selected':''}>คณิตศาสตร์</option>
+                            <option value="ภาษาไทย" ${rowData && rowData.department==='ภาษาไทย'?'selected':''}>ภาษาไทย</option>
+                            <option value="ภาษาต่างประเทศ" ${rowData && rowData.department==='ภาษาต่างประเทศ'?'selected':''}>ภาษาต่างประเทศ</option>
+                            <option value="บริหารงานทั่วไป" ${rowData && rowData.department==='บริหารงานทั่วไป'?'selected':''}>บริหารงานทั่วไป</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs text-slate-500 mb-1">เบอร์โทรศัพท์ติดต่อ</label>
+                        <input type="text" id="stf_phone" class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData?rowData.phone || '':''}">
+                    </div>
+                `;
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeFormModal() {
+            const modal = document.getElementById('formModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Processing Inserts/Updates Pipeline Execution
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+            const type = document.getElementById('formType').value;
+            const id = document.getElementById('formId').value;
+            let userId = document.getElementById('formUserId').value;
+            let imgUrl = document.getElementById('formAvatarUrl').value;
+
+            showLoader(true);
+
+            // 1. Process image compression pipeline upload if newly given base64
+            if(imgUrl.startsWith('data:image')) {
+                imgUrl = await uploadCompressedImageToStorage(imgUrl);
+            }
+
+            try {
+                // 2. Account Generation Module for New Entries by Admin
+                if(!id && currentUser.role === 'Admin') {
+                    const u = document.getElementById('accUsername').value.trim();
+                    const p = document.getElementById('accPassword').value.trim();
+                    const targetRole = type === 'student' ? 'Student' : 'Teacher';
+
+                    const { data: newUser, error: uErr } = await dbClient.from('users').insert({
+                        username: u, password: p, role: targetRole
+                    }).select().single();
+
+                    if(uErr) throw new Error('ไม่สามารถสร้างบัญชีผู้ใช้งานระบบได้ (ชื่อซ้ำกันหรือไม่)');
+                    userId = newUser.id;
+                }
+
+                // 3. Payload preparation per specific parameters
+                if(type === 'student') {
+                    const payload = {
+                        name: document.getElementById('std_name').value.trim(),
+                        phone: document.getElementById('std_phone').value.trim(),
+                        parent_name: document.getElementById('std_pname').value.trim(),
+                        parent_phone: document.getElementById('std_pphone').value.trim(),
+                        avatar_url: imgUrl
+                    };
+
+                    // Only admin can configure core structural details
+                    if(currentUser.role === 'Admin') {
+                        payload.student_code = document.getElementById('std_code').value.trim();
+                        payload.grade_level = document.getElementById('std_grade').value;
+                        payload.classroom = document.getElementById('std_class').value.trim();
+                        payload.program = document.getElementById('std_program').value.trim();
+                        if(!id) payload.user_id = userId;
+                    }
+
+                    let error;
+                    if(id) {
+                        ({ error } = await dbClient.from('students').update(payload).eq('id', id));
+                    } else {
+                        ({ error } = await dbClient.from('students').insert(payload));
+                    }
+                    if(error) throw error;
+
+                } else if(type === 'staff') {
+                    const payload = {
+                        name: document.getElementById('stf_name').value.trim(),
+                        phone: document.getElementById('stf_phone').value.trim(),
+                        avatar_url: imgUrl
+                    };
+
+                    if(currentUser.role === 'Admin') {
+                        payload.position = document.getElementById('stf_pos').value.trim();
+                        payload.department = document.getElementById('stf_dept').value;
+                        if(!id) payload.user_id = userId;
+                    }
+
+                    let error;
+                    if(id) {
+                        ({ error } = await dbClient.from('staff').update(payload).eq('id', id));
+                    } else {
+                        ({ error } = await dbClient.from('staff').insert(payload));
+                    }
+                    if(error) throw error;
+                }
+
+                showToast('บันทึกข้อมูลสารสนเทศสำเร็จเสร็จสิ้น');
+                closeFormModal();
+                
+                // Re-render context states
+                if(currentUser.role === 'Admin' || currentUser.role === 'Teacher') {
+                    await renderView();
+                } else {
+                    routeTo('student_card');
+                }
+
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'เกิดความล้มเหลวในการทำรายการฐานข้อมูล', 'danger');
+            } finally {
+                showLoader(false);
+            }
+        }
+
+        // Delete Command execution
+        async function deleteRowRecord(table, id) {
+            if(!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลสถิติตารางประวัตินี้อย่างถาวร?')) return;
+            
+            showLoader(true);
+            const { error } = await dbClient.from(table).delete().eq('id', id);
+            showLoader(false);
+
+            if(error) {
+                showToast('ล้มเหลวในการลบประวัติ', 'danger');
+            } else {
+                showToast('ลบข้อมูลเรียบร้อยแล้ว');
+                renderView();
+            }
+        }
+
+        // ==========================================
+        // 8. DATA EXPORT ACTIONS (EXCEL MODULE)
+        // ==========================================
+        function exportStudentsToExcel() {
+            if(cachedStudents.length === 0) {
+                showToast('ไม่มีข้อมูลเพียงพอสำหรับการส่งออกรายงาน', 'warning');
+                return;
+            }
+
+            // Map data dictionary cleanly for users spreadsheet layout
+            const reportData = cachedStudents.map(s => ({
+                'เลขประจำตัวนักเรียน': s.student_code,
+                'ชื่อ-นามสกุล': s.name,
+                'ระดับชั้นปี': s.grade_level,
+                'ห้องเรียน': s.classroom,
+                'แผนการเรียนกลุ่มสาระ': s.program,
+                'เบอร์โทรศัพท์': s.phone || '-',
+                'ชื่อผู้ปกครอง': s.parent_name || '-',
+                'เบอร์โทรศัพท์ผู้ปกครอง': s.parent_phone || '-'
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(reportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Student_Records");
+            
+            // Output generation
+            XLSX.writeFile(workbook, `รายงานสารสนเทศนักเรียน_${Date.now()}.xlsx`);
+            showToast('ดาวน์โหลดเอกสารสรุป Excel สำเร็จ');
+        }
+    </script>
+</body>
+</html>
