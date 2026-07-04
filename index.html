@@ -139,6 +139,7 @@
     </div>
 
     <script>
+	
         // ==========================================
         // 1. SUPABASE CLIENT INITIALIZATION
         // ==========================================
@@ -154,6 +155,7 @@
         let cachedStudents = [];
         let cachedStaff = [];
         let mainChart = null;
+		let cachedUsers = []; // เก็บสำเนาข้อมูลผู้ใช้ทั้งหมดเพื่อใช้ Search/Filter บนหน้าเว็บ
 
         // UI Constraints & Dictionaries
         const gradeLevels = ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
@@ -305,25 +307,32 @@
             mGrid.innerHTML = '';
 
             // Layout definitions per role
-            if(currentUser.role === 'Admin') {
-                // Desktop
-                dNav.innerHTML = `
-                    <button onclick="routeTo('dashboard')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='dashboard'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> แดชบอร์ดผู้บริหาร</button>
-                    <button onclick="routeTo('students')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='students'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="users" class="w-4 h-4"></i> ข้อมูลนักเรียน</button>
-                    <button onclick="routeTo('staff')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='staff'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="contact" class="w-4 h-4"></i> ข้อมูลบุคลากร</button>
-                `;
-                // Mobile Bottom Bar (Admin Special Hamburger in center)
-                mNav.innerHTML = `
-                    <button onclick="routeTo('dashboard')" class="flex flex-col items-center justify-center text-xs font-medium ${activeView==='dashboard'?'text-indigo-600':'text-slate-400'}"><i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>แดชบอร์ด</span></button>
-                    <button onclick="toggleAdminPanel(true)" class="flex flex-col items-center justify-center -translate-y-4 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg border-4 border-white"><i data-lucide="menu" class="w-6 h-6"></i></button>
-                    <button onclick="openLogoutModal()" class="flex flex-col items-center justify-center text-xs font-medium text-red-500"><i data-lucide="log-out" class="w-5 h-5"></i><span>ออก</span></button>
-                `;
-                // Mobile Admin Panel Drawer Grid Menu
-                mGrid.innerHTML = `
-                    <button onclick="routeTo('students')" class="flex flex-col items-center gap-2 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-indigo-50/50 text-slate-700"><i data-lucide="users" class="w-6 h-6 text-indigo-600"></i><span class="text-xs font-semibold">ข้อมูลนักเรียน</span></button>
-                    <button onclick="routeTo('staff')" class="flex flex-col items-center gap-2 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-indigo-50/50 text-slate-700"><i data-lucide="contact" class="w-6 h-6 text-indigo-600"></i><span class="text-xs font-semibold">ข้อมูลบุคลากร</span></button>
-                `;
-            } else if(currentUser.role === 'Teacher') {
+            // ==========================================
+// ปรับแก้ในฟังก์ชัน buildNavigationMenus()
+// ==========================================
+if(currentUser.role === 'Admin') {
+    // Desktop Sidebar Menu (เพิ่มปุ่มจัดการผู้ใช้งาน)
+    dNav.innerHTML = `
+        <button onclick="routeTo('dashboard')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='dashboard'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> แดชบอร์ดผู้บริหาร</button>
+        <button onclick="routeTo('students')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='students'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="users" class="w-4 h-4"></i> ข้อมูลนักเรียน</button>
+        <button onclick="routeTo('staff')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='staff'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="contact" class="w-4 h-4"></i> ข้อมูลบุคลากร</button>
+        <button onclick="routeTo('users_management')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='users_management'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="shield-check" class="w-4 h-4"></i> จัดการผู้ใช้งานระบบ</button>
+    `;
+    
+    // Mobile Bottom Bar (เหมือนเดิม)
+    mNav.innerHTML = `
+        <button onclick="routeTo('dashboard')" class="flex flex-col items-center justify-center text-xs font-medium ${activeView==='dashboard'?'text-indigo-600':'text-slate-400'}"><i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>แดชบอร์ด</span></button>
+        <button onclick="toggleAdminPanel(true)" class="flex flex-col items-center justify-center -translate-y-4 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg border-4 border-white"><i data-lucide="menu" class="w-6 h-6"></i></button>
+        <button onclick="openLogoutModal()" class="flex flex-col items-center justify-center text-xs font-medium text-red-500"><i data-lucide="log-out" class="w-5 h-5"></i><span>ออก</span></button>
+    `;
+    
+    // Mobile Admin Panel Drawer (เพิ่มปุ่มใน Grid Layout สำหรับมือถือ)
+    mGrid.innerHTML = `
+        <button onclick="routeTo('students')" class="flex flex-col items-center gap-2 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-indigo-50/50 text-slate-700"><i data-lucide="users" class="w-6 h-6 text-indigo-600"></i><span class="text-xs font-semibold">ข้อมูลนักเรียน</span></button>
+        <button onclick="routeTo('staff')" class="flex flex-col items-center gap-2 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-indigo-50/50 text-slate-700"><i data-lucide="contact" class="w-6 h-6 text-indigo-600"></i><span class="text-xs font-semibold">ข้อมูลบุคลากร</span></button>
+        <button onclick="routeTo('users_management')" class="col-span-2 flex flex-col items-center gap-2 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-indigo-50/50 text-slate-700"><i data-lucide="shield-check" class="w-6 h-6 text-indigo-600"></i><span class="text-xs font-semibold">จัดการผู้ใช้งานระบบ (สิทธิ์/รหัสผ่าน)</span></button>
+    `;
+} else if(currentUser.role === 'Teacher') {
                 dNav.innerHTML = `
                     <button onclick="routeTo('teacher_profile')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='teacher_profile'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="user" class="w-4 h-4"></i> ข้อมูลของฉัน</button>
                     <button onclick="routeTo('students')" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition ${activeView==='students'?'bg-indigo-50 text-indigo-600':'text-slate-600 hover:bg-slate-50'}"><i data-lucide="users" class="w-4 h-4"></i> นักเรียนในกลุ่ม</button>
@@ -713,6 +722,63 @@
                     </div>
                 `;
             }
+			
+			else if(activeView === 'users_management') {
+    if(currentUser.role !== 'Admin') return routeTo('landing');
+    showLoader(true);
+    
+    // ดึงข้อมูลผู้ใช้งานทั้งหมดจาก Supabase ตาราง users
+    const { data, error } = await dbClient.from('users').select('*').order('id', { ascending: false });
+    showLoader(false);
+    
+    if(error) {
+        showToast('ไม่สามารถดึงข้อมูลผู้ใช้งานได้', 'danger');
+        return;
+    }
+    cachedUsers = data || [];
+
+    container.innerHTML = `
+        <div class="space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">ระบบจัดการผู้ใช้งานและสิทธิ์ระบบ</h2>
+                    <p class="text-xs text-slate-400">ตรวจสอบ แก้ไขรหัสผ่าน เปลี่ยนแปลงสิทธิ์ (Admin / Teacher / Student)</p>
+                </div>
+                <button onclick="openFormModal('user_account')" class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"><i data-lucide="user-plus" class="w-4 h-4"></i> เพิ่มผู้ใช้งานระบบ</button>
+            </div>
+
+            <div class="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="search" class="w-4 h-4"></i></div>
+                    <input type="text" id="searchUserAcc" oninput="filterUsersTable()" class="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="ค้นหาด้วยชื่อผู้ใช้ (Username) หรือสิทธิ์ระดับผู้ใช้...">
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+                <div class="hidden md:block overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                <th class="px-6 py-3">ID บัญชี</th>
+                                <th class="px-6 py-3">ชื่อผู้ใช้ (Username)</th>
+                                <th class="px-6 py-3">รหัสผ่าน (Password)</th>
+                                <th class="px-6 py-3">สิทธิ์การเข้าถึงระบบ</th>
+                                <th class="px-6 py-3">วันที่สร้างบัญชี</th>
+                                <th class="px-6 py-3 text-right">การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody" class="text-sm divide-y divide-slate-100">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div id="userMobileContainer" class="block md:hidden p-4 space-y-3 divide-y divide-slate-100">
+                    </div>
+            </div>
+        </div>
+    `;
+    filterUsersTable(); // เรียกฟังก์ชันแสดงข้อมูลทันทีพร้อมระบบ Filter Search
+}
 
             lucide.createIcons();
         }
@@ -1030,6 +1096,33 @@
                     </div>
                 `;
             }
+			
+			// เพิ่มเงื่อนไขต่อท้ายในฟังก์ชัน openFormModal() เดิม
+else if(type === 'user_account') {
+    document.getElementById('modalFormTitle').innerText = rowData ? 'แก้ไขบัญชีผู้ใช้ระบบ' : 'สร้างบัญชีผู้ใช้ระบบใหม่';
+    // ซ่อนพื้นที่อัปโหลดรูปภาพของโปรไฟล์เพราะเป็นการจัดการข้อมูลดิบของระบบผู้ใช้
+    document.getElementById('formAvatarWrapper').parentElement.classList.add('hidden');
+    document.getElementById('accountFields').classList.add('hidden'); // ซ่อนฟิลด์เสริมของเดิมซ้ำซ้อน
+    
+    dynamicInputs.innerHTML = `
+        <div class="col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+            <input type="text" id="usr_username" required ${rowData ? 'disabled' : ''} class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData ? rowData.username : ''}">
+        </div>
+        <div class="col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">รหัสผ่านเข้าระบบ (Password)</label>
+            <input type="text" id="usr_password" required class="w-full p-2 text-sm border rounded-xl bg-white" value="${rowData ? rowData.password : ''}">
+        </div>
+        <div class="col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">ระดับสิทธิ์ (Role)</label>
+            <select id="usr_role" required ${rowData && rowData.username === 'admin' ? 'disabled' : ''} class="w-full p-2 text-sm border rounded-xl bg-white">
+                <option value="Admin" ${rowData && rowData.role==='Admin'?'selected':''}>Admin (ผู้ดูแลระบบสูงสุด)</option>
+                <option value="Teacher" ${rowData && rowData.role==='Teacher'?'selected':''}>Teacher (อาจารย์ผู้สอนประจำชั้น)</option>
+                <option value="Student" ${rowData && rowData.role==='Student'?'selected':''}>Student (นักเรียน/ผู้เรียน)</option>
+            </select>
+        </div>
+    `;
+}
 
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -1130,6 +1223,30 @@
                 } else {
                     routeTo('student_card');
                 }
+				
+				// แปะเพิ่มในฟังก์ชัน handleFormSubmit(event) ด้านใน block try { }
+if(type === 'user_account') {
+    const payload = {
+        password: document.getElementById('usr_password').value.trim(),
+        role: document.getElementById('usr_role').value
+    };
+    
+    // หากเป็นการเพิ่มใหม่ (ไม่มี ID บัญชี) ให้กำหนดชื่อ Username ด้วย
+    if(!id) {
+        payload.username = document.getElementById('usr_username').value.trim();
+    }
+
+    let error;
+    if(id) {
+        // สั่งอัปเดตรหัสผ่านและสิทธิ์เดิม
+        ({ error } = await dbClient.from('users').update(payload).eq('id', id));
+    } else {
+        // สั่งสร้างผู้ใช้รายใหม่เข้าตารางตรงๆ
+        ({ error } = await dbClient.from('users').insert(payload));
+    }
+    
+    if(error) throw new Error('เกิดข้อผิดพลาดในการบันทึกบัญชีผู้ใช้ (Username ซ้ำหรือไม่)');
+}
 
             } catch (err) {
                 console.error(err);
@@ -1184,6 +1301,68 @@
             XLSX.writeFile(workbook, `รายงานสารสนเทศนักเรียน_${Date.now()}.xlsx`);
             showToast('ดาวน์โหลดเอกสารสรุป Excel สำเร็จ');
         }
+		
+		// ==========================================
+// ฟังก์ชันเพิ่มใหม่สำหรับระบบควบคุมผู้ใช้ (User Management)
+// ==========================================
+
+// 1. ฟังก์ชันกรองข้อมูลและค้นหาผู้ใช้แบบ Realtime ทั้งบนคอมและมือถือ
+function filterUsersTable() {
+    const sText = document.getElementById('searchUserAcc').value.toLowerCase();
+    const filtered = cachedUsers.filter(u => u.username.toLowerCase().includes(sText) || u.role.toLowerCase().includes(sText));
+
+    const tbody = document.getElementById('userTableBody');
+    const mContainer = document.getElementById('userMobileContainer');
+    tbody.innerHTML = '';
+    mContainer.innerHTML = '';
+
+    if(filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center p-6 text-xs text-slate-400">ไม่พบข้อมูลบัญชีผู้ใช้งานที่ค้นหา</td></tr>`;
+        mContainer.innerHTML = `<div class="text-center p-6 text-xs text-slate-400">ไม่พบข้อมูลบัญชีผู้ใช้งาน</div>`;
+        return;
+    }
+
+    filtered.forEach(u => {
+        // แทรกลงตาราง Desktop
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50/80 transition text-xs";
+        
+        // กำหนดสีป้ายกำกับตามประเภทสิทธิ์ (Badge Style)
+        let roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">${u.role}</span>`;
+        if(u.role === 'Admin') roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600 border border-red-100">${u.role}</span>`;
+        if(u.role === 'Teacher') roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">${u.role}</span>`;
+        if(u.role === 'Student') roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100">${u.role}</span>`;
+
+        tr.innerHTML = `
+            <td class="px-6 py-3 text-slate-400 font-mono">#${u.id}</td>
+            <td class="px-6 py-3 font-semibold text-slate-900">${u.username}</td>
+            <td class="px-6 py-3 font-mono text-slate-500">${u.password}</td>
+            <td class="px-6 py-3">${roleBadge}</td>
+            <td class="px-6 py-3 text-slate-400">${new Date(u.created_at).toLocaleDateString('th-TH')}</td>
+            <td class="px-6 py-3 text-right space-x-1 whitespace-nowrap">
+                <button onclick="openFormModal('user_account', ${JSON.stringify(u).replace(/"/g, '&quot;')})" class="p-1 text-blue-600 hover:bg-blue-50 rounded-md inline-block"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+                ${u.username === 'admin' ? '' : `<button onclick="deleteRowRecord('users', ${u.id})" class="p-1 text-red-600 hover:bg-red-50 rounded-md inline-block"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`}
+            </td>
+        `;
+        tbody.appendChild(tr);
+
+        // แทรกลงการ์ดมือถือ Mobile
+        const card = document.createElement('div');
+        card.className = "py-3 flex justify-between items-center gap-3 text-xs";
+        card.innerHTML = `
+            <div class="overflow-hidden">
+                <p class="font-bold text-slate-900 flex items-center gap-2">${u.username} ${roleBadge}</p>
+                <p class="text-[10px] text-slate-400 font-mono mt-0.5">รหัสผ่าน: ${u.password}</p>
+            </div>
+            <div class="flex gap-1 flex-shrink-0">
+                <button onclick="openFormModal('user_account', ${JSON.stringify(u).replace(/"/g, '&quot;')})" class="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                ${u.username === 'admin' ? '' : `<button onclick="deleteRowRecord('users', ${u.id})" class="p-1.5 bg-red-50 text-red-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
+            </div>
+        `;
+        mContainer.appendChild(card);
+    });
+    lucide.createIcons();
+}
     </script>
 </body>
 </html>
